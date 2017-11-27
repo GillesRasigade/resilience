@@ -30,24 +30,48 @@ class Broker extends EventEmitter {
   }
 
   message(worker: cluster.Worker, message: Message): void {
-    console.log(`Received message from ${worker.process.pid}`, message);
+    // console.log(`Received message from ${worker.process.pid}`, message);
 
     switch (message.type) {
-      case c.WORKER_END:
-      case c.WORKER_START: {
-        this.broadcast(message);
-        break;
+      case c.REPLY: {
+        this.emit(message.idem, message);
+        return;
       }
     }
+
+    return this.broadcast(message);
   }
 
-  send(worker: cluster.Worker, message: Message) {
+  send(message: Message, worker: cluster.Worker = undefined) {
+    if (!worker) {
+      /**
+       * Random determination of a worker to receive this message
+       */
+      const items = Array.from(this.replicas);
+      [, { fork: worker }] = items[Math.floor(Math.random() * items.length)];
+    }
+
     worker.send(message);
   }
 
+  /**
+   * Broadcast a message to all replicas based on conditions
+   *
+   * @param message The message to broadcast
+   */
   broadcast(message: Message) {
     for (const [pid, { fork }] of this.replicas) {
-      this.send(fork, message);
+      if (message.from && pid === message.from) {
+        // Skip the instegating replica from broadcast
+        continue;
+      }
+
+      if (message.to && pid !== message.to) {
+        // Skip not recipient replicas
+        continue;
+      }
+
+      this.send(message, fork);
     }
   }
 
@@ -77,7 +101,6 @@ class Broker extends EventEmitter {
     }
 
     this.fork(replica.type);
-    console.log(79, this.replicas.size);
   }
 
   /**
@@ -100,12 +123,12 @@ class Broker extends EventEmitter {
     fork.on("exit", this.workerExit.bind(this, fork));
 
     for (const [pid, repl] of this.replicas) {
-      this.send(fork, {
+      this.send({
         type: c.WORKER_REGISTER,
         date: new Date(),
         idem: uuid(),
         payload: _.omit(repl, "fork")
-      });
+      }, fork);
     }
 
     /**
@@ -115,15 +138,95 @@ class Broker extends EventEmitter {
 
     return this;
   }
+
+  /**
+   * Request workflow applied to the replicas
+   * @param request
+   */
+  request(request: Message): Broker {
+    this.send(request);
+
+    return;
+  }
 }
+
+
+/** TMP >>> */
+
+export async function store(broker: Broker) {
+  const data = {
+    v: `${Math.floor(Math.random() * 10)}`,
+    data: "This is my data"
+  };
+
+  const data2 = {
+    v: data.v,
+    data: "This is my data 2"
+  };
+
+  const query = {
+    type: c.QUERY,
+    date: new Date(),
+    idem: uuid(),
+    payload: {
+      v: data.v
+    }
+  };
+
+  const request = {
+    type: c.REQUEST,
+    date: new Date(),
+    idem: uuid(),
+    payload: data
+  };
+
+  const request2 = {
+    type: c.REQUEST,
+    date: new Date(),
+    idem: uuid(),
+    payload: data2
+  };
+
+  const handlerFactory = () => {
+    const tic = new Date();
+    const responses = [];
+    const handler = (message: Message) => {
+      responses.push(message);
+      if (responses.length > 1) {
+        const tac = new Date();
+
+        console.log(196, message, tac.getTime() - tic.getTime(), "ms");
+
+        // Unregister the handler
+        broker.removeListener(request.idem, handler);
+      }
+    };
+
+    return handler;
+  };
+
+  broker.on(request.idem, handlerFactory());
+
+  broker.request(request);
+  setTimeout(() => {
+    broker.on(request2.idem, handlerFactory());
+    broker.request(request2);
+  }, 1000);
+}
+
+/** <<< TMP */
 
 export default async function start(): Promise<Broker> {
   console.log(`Broker ${process.pid} is running`);
 
-  const CPUS = os.cpus();
-  const nReplicas = CPUS.length - 1;
+  const errors = 1;
+  const nReplicas = 3 * errors + 1;
 
   const broker = new Broker(nReplicas);
+
+  setTimeout(() => {
+    store(broker);
+  }, 3000);
 
   return broker;
 }

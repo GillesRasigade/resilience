@@ -84,6 +84,18 @@ The messages are identifying the commander and the generals.
 
 Each general is applying
 
+# Protocol
+
+- A request is sent to one replica
+- This replica is determining the index `n` of this request for the document
+  identified with `v`
+- This request is stored in the primary replica
+- A digest is computed for the request
+- The request is broadcasted to all replicas
+- Each replica is determining the index on its own referential
+  - if `n_i != n`, the request is refused
+  - else send `commit`
+
 # References
 
 [1] M. Castro, B. Liskov, *Practical Byzantine Fault Tolerance*, 1999 ([pdf](http://pmg.csail.mit.edu/papers/osdi99.pdf))
