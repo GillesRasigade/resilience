@@ -1,0 +1,26 @@
+{
+  "name": "resilience",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "doc": "typedoc --out doc src",
+    "start": "node dist",
+    "build-ts": "tsc",
+    "watch-ts": "tsc -w",
+    "tslint": "tslint -c tslint.json -p tsconfig.json"
+  },
+  "author": "Gilles Rasigade",
+  "license": "ISC",
+  "dependencies": {
+    "chpr-logger": "^2.6.0",
+    "lodash": "^4.17.4",
+    "uuid": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^3.4.3",
+    "tslint": "^5.8.0",
+    "typedoc": "^0.9.0",
+    "typescript": "^2.6.1"
+  }
+}
