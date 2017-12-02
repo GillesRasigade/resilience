@@ -6,8 +6,10 @@ import * as cluster from "cluster";
 
 import * as _ from "lodash";
 import * as uuid from "uuid/v4";
+import * as hash from "object-hash";
 
 import * as c from "./constants";
+import { setInterval } from "timers";
 
 class Broker extends EventEmitter {
   n: number;
@@ -157,73 +159,96 @@ class Broker extends EventEmitter {
 /** TMP >>> */
 
 export async function store(broker: Broker) {
-  const data = {
-    v: `${Math.floor(Math.random() * 10)}`,
-    data: "This is my data"
-  };
-
-  const data2 = {
-    v: data.v,
-    data: "This is my data 2"
-  };
-
-  const query: Message = {
-    type: c.QUERY,
-    times: [{
-      event: c.MessageTimeEvents.EMITTED,
-      date: new Date()
-    }],
-    idem: uuid(),
-    payload: {
-      v: data.v
-    }
-  };
-
-  const request : Message = {
-    type: c.REQUEST,
-    times: [{
-      event: c.MessageTimeEvents.EMITTED,
-      date: new Date()
-    }],
-    idem: uuid(),
-    payload: data
-  };
-
-  const request2 : Message = {
-    type: c.REQUEST,
-    times: [{
-      event: c.MessageTimeEvents.EMITTED,
-      date: new Date()
-    }],
-    idem: uuid(),
-    payload: data2
-  };
-
-  const handlerFactory = () => {
+  const handlerFactory = (request: Message) => {
     const tic = new Date();
-    const responses: Message[] = [];
+    const validation: {[s: string]: number} = {};
+    const messages: Map<string, Message> = new Map();
+    let count = 0;
+    let validDigest: string;
+
+    /**
+     * Reply handler
+     * @todo Identify replicas in failure
+     * @todo Force resync of replicas in failure
+     *
+     * @param message
+     */
     const handler = (message: Message) => {
-      responses.push(message);
-      if (responses.length > 1) {
+      // @warning possible performances issues
+      const digest = hash(message.payload);
+      count++;
+
+      messages.set(digest, message);
+
+      validation[digest] = (validation[digest] || 0) + 1;
+      console.log("   ", message.payload.id, message.pid);
+
+      if (validation[digest] == 2) {
+        validDigest = digest;
         const tac = new Date();
 
-        console.log(196, message, tac.getTime() - tic.getTime(), "ms");
+        console.log(196, message.payload.id, `${tac.getTime() - tic.getTime()} ms`);
+      }
 
+      if (count === broker.n) {
         // Unregister the handler
         broker.removeListener(request.idem, handler);
+
+        for (const [digest, message] of messages) {
+          if (digest !== validDigest) {
+            console.log(196, digest, message.payload);
+            broker.broadcast({
+              type: c.FAILING,
+              times: [{
+                event: c.MessageTimeEvents.EMITTED,
+                date: new Date()
+              }],
+              idem: uuid(),
+              to: message.pid
+            });
+          }
+        }
       }
+
     };
+
+    // Cleanup the listener if not all processes answers
+    // @warning possible memory intensive
+    setTimeout(() => {
+      broker.removeListener(request.idem, handler);
+    }, 1000);
 
     return handler;
   };
 
-  broker.on(request.idem, handlerFactory());
+  const sendRequest = () => {
+    const data = {
+      v: `${Math.floor(Math.random() * 10)}`,
+      data: "This is my data"
+    };
 
-  broker.request(request);
-  setTimeout(() => {
-    broker.on(request2.idem, handlerFactory());
-    broker.request(request2);
-  }, 1000);
+    const request: Message = {
+      type: c.MESSAGE,
+      times: [{
+        event: c.MessageTimeEvents.EMITTED,
+        date: new Date()
+      }],
+      idem: uuid(),
+      payload: data
+    };
+
+    broker.on(request.idem, handlerFactory(request));
+    broker.broadcast(request);
+  };
+
+  setInterval(sendRequest, 1000);
+  // setInterval(sendRequest, 1001);
+  // broker.request(request);
+
+  // setTimeout(() => {
+  //   broker.on(request2.idem, handlerFactory());
+  //   broker.request(request2);
+  // }, 1000);
 }
 
 /** <<< TMP */

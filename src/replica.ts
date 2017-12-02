@@ -18,15 +18,35 @@ class Replica extends EventEmitter {
    */
   type: string;
   /**
+   * Does the replica process the requests
+   */
+  processing: boolean = false;
+  /**
+   * Does this replica is failing
+   */
+  failing: boolean = false;
+  /**
    * List of available replicas
    */
   replicas: Map<number, Replica> = new Map();
+  /**
+   * Ordered messages digest
+   */
+  journal: Map<string, number> = new Map();
+  nextJournalEntryId: number = 0;
+  /**
+   * Map of messages
+   */
+  messages: Map<string, Message> = new Map();
 
   constructor(type: string) {
     super();
 
     this.type = type;
     this.bind();
+
+    // For testing purpose
+    this.failing = Math.random() < 0.25;
 
     return this.send({
       type: c.WORKER_START,
@@ -46,7 +66,74 @@ class Replica extends EventEmitter {
     console.log(`[REPLICA][${this.pid}] ${message}`, args);
   }
 
-  message(message: Message): void {
+  process() {
+    if (this.processing === true) {
+      return;
+    }
+
+    for (const [digest] of this.journal) {
+      try {
+        const message = this.messages.get(digest);
+        // console.log(62, digest, message);
+
+        this.messages.delete(digest);
+        this.journal.delete(digest);
+        // console.log(68, "After cleanup", this.messages.size, this.journal.size);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  /**
+   * Store the request with valid order
+   * @param message
+   */
+  storeMessage(message: Message) {
+    const digest = hash(message);
+
+    let messageId = this.journal.get(digest);
+
+    if (messageId === undefined) {
+      messageId = this.nextJournalEntryId;
+      this.nextJournalEntryId++;
+
+      // For testing purpose
+      if (this.failing) {
+        messageId++;
+      }
+
+      this.journal.set(digest, messageId);
+      this.messages.set(digest, message);
+
+    }
+
+    this.send({
+      type: c.REPLY,
+      idem: message.idem,
+      times: [
+        ...message.times,
+        {
+          event: c.MessageTimeEvents.STORED,
+          date: new Date()
+        }
+      ],
+      payload: {
+        id: messageId
+      }
+    });
+
+    this.emit("process");
+  }
+
+  onFailing(message: Message): void {
+    this.log("Failing...", message);
+
+    this.failing = true;
+
+  }
+
+  onMessage(message: Message): void {
     // this.log("Received message", message);
     switch (message.type) {
       case c.WORKER_REGISTER:
@@ -61,12 +148,24 @@ class Replica extends EventEmitter {
         this.replicas.delete(replica.pid);
         break;
       }
+
+      case c.MESSAGE: {
+        this.storeMessage(message);
+        break;
+      }
+
+      case c.FAILING: {
+        this.onFailing(message);
+        break;
+      }
     }
   }
 
   bind(): Replica {
     process.on("SIGINT", this.exit.bind(this));
-    process.on("message", this.message.bind(this));
+    process.on("message", this.onMessage.bind(this));
+
+    this.on("process", this.process.bind(this));
 
     return this;
   }
@@ -85,7 +184,7 @@ class Replica extends EventEmitter {
     this.send({
       type: c.WORKER_END,
       times: [{
-        event: MessageTimeEvents.EMITTED,
+        event: c.MessageTimeEvents.EMITTED,
         date: new Date()
       }],
       idem: uuid(),

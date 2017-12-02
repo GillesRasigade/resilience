@@ -5,6 +5,7 @@ patterns which a required to have fully resilient architecture.
 
 <!-- TOC depthFrom:2 -->
 
+- [Notes](#notes)
 - [State machine](#state-machine)
 - [Definitions](#definitions)
   - [Scenario](#scenario)
@@ -12,6 +13,10 @@ patterns which a required to have fully resilient architecture.
 - [Reconciliation](#reconciliation)
 
 <!-- /TOC -->
+
+## Notes
+
+Replicas and brokers are the same object with recursive children definitions.
 
 ## State machine
 

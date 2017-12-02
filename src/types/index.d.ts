@@ -1,3 +1,10 @@
+declare interface ReplicaConfiguration {
+  processes?: {
+    [s: string]: number | ReplicaConfiguration;
+  },
+  keepAlive?: boolean
+}
+
 declare interface Replica {
   pid: number;
   type: string;
@@ -7,7 +14,9 @@ declare interface Replica {
 declare enum MessageTimeEvents {
   EMITTED = 0,
   PREPARED = 1,
-  STORED = 2
+  STORED = 2,
+  PROCESSED = 3,
+  REPLY = 4
 }
 
 /**
@@ -27,6 +36,7 @@ declare interface Message {
   times: MessageTime[]; // Times applying to the message
   idem: string; // Idempotency key
   criticity?: number; // Criticality of the message
+  pid?: number; // Process ID emitting the message
   /**
    * Process id instegating the message
    */
