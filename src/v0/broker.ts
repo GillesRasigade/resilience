@@ -12,7 +12,7 @@ import * as c from "./constants";
 class Broker extends EventEmitter {
   n: number;
   keepAlive: boolean;
-  replicas: Map<number, Replica> = new Map();
+  replicas: Map<number, IReplica> = new Map();
 
   constructor(n: number = 1, keepAlive: boolean = true) {
     super();
@@ -25,7 +25,7 @@ class Broker extends EventEmitter {
     }
   }
 
-  log(message: string, args: object = {}) {
+  log(message: string, args: StringMap = {}) {
     console.log(`[BROKER] ${message}`, args);
   }
 
@@ -125,10 +125,7 @@ class Broker extends EventEmitter {
     for (const [pid, repl] of this.replicas) {
       this.send({
         type: c.WORKER_REGISTER,
-        times: [{
-          event: c.MessageTimeEvents.EMITTED,
-          date: new Date()
-        }],
+        date: new Date(),
         idem: uuid(),
         payload: _.omit(repl, "fork")
       }, fork);
@@ -167,41 +164,32 @@ export async function store(broker: Broker) {
     data: "This is my data 2"
   };
 
-  const query: Message = {
+  const query = {
     type: c.QUERY,
-    times: [{
-      event: c.MessageTimeEvents.EMITTED,
-      date: new Date()
-    }],
+    date: new Date(),
     idem: uuid(),
     payload: {
       v: data.v
     }
   };
 
-  const request : Message = {
+  const request = {
     type: c.REQUEST,
-    times: [{
-      event: c.MessageTimeEvents.EMITTED,
-      date: new Date()
-    }],
+    date: new Date(),
     idem: uuid(),
     payload: data
   };
 
-  const request2 : Message = {
+  const request2 = {
     type: c.REQUEST,
-    times: [{
-      event: c.MessageTimeEvents.EMITTED,
-      date: new Date()
-    }],
+    date: new Date(),
     idem: uuid(),
     payload: data2
   };
 
   const handlerFactory = () => {
     const tic = new Date();
-    const responses: Message[] = [];
+    const responses = [];
     const handler = (message: Message) => {
       responses.push(message);
       if (responses.length > 1) {

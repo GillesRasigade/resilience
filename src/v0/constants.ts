@@ -1,9 +1,3 @@
-export enum MessageTimeEvents {
-  EMITTED = 0,
-  PREPARED = 1,
-  STORED = 2
-}
-
 export const WORKER_TYPE: string = "WORKER_TYPE";
 export const WORKER_START: string = "WORKER_START";
 export const WORKER_END: string = "WORKER_END";

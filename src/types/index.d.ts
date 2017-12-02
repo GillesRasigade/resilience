@@ -1,19 +1,32 @@
-declare interface StringMap { [s: string]: string; }
-
-declare interface IReplica {
+declare interface Replica {
   pid: number;
   type: string;
   fork?: cluster.Worker
 }
 
+declare enum MessageTimeEvents {
+  EMITTED = 0,
+  PREPARED = 1,
+  STORED = 2
+}
+
+/**
+ * MessageTime is defining the interface of events
+ * applying to a message from the emission to the store
+ */
+declare interface MessageTime {
+  event: MessageTimeEvents,
+  date: Date
+}
+
+/**
+ * Message interface
+ */
 declare interface Message {
-  /**
-   * Unique message type
-   */
-  type: string;
-  date: Date;
-  idem: string;
-  criticity?: number;
+  type: string; // Message type
+  times: MessageTime[]; // Times applying to the message
+  idem: string; // Idempotency key
+  criticity?: number; // Criticality of the message
   /**
    * Process id instegating the message
    */
@@ -23,32 +36,4 @@ declare interface Message {
    */
   to?: number;
   payload?: object;
-}
-
-declare interface Log {
-  /**
-   * Log type
-   */
-  type: string;
-  /**
-   * Item id
-   */
-  v: string;
-  /**
-   * Item version number
-   */
-  n: number;
-  /**
-   * Digest of the request
-   */
-  d: string;
-  /**
-   * Item to apply the changes
-   */
-  m?: Item
-}
-
-declare interface Item {
-  v: string;
-  n: number;
 }

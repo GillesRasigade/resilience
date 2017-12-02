@@ -9,14 +9,7 @@ patterns which a required to have fully resilient architecture.
 - [Definitions](#definitions)
   - [Scenario](#scenario)
   - [Steps](#steps)
-- [Messages](#messages)
-  - [Request](#request)
-  - [Pre-prepare](#pre-prepare)
-  - [Prepare](#prepare)
-  - [Commit](#commit)
-  - [Reply](#reply)
-  - [Commander (master)](#commander-master)
-  - [Generals (replicas)](#generals-replicas)
+- [Reconciliation](#reconciliation)
 
 <!-- /TOC -->
 
@@ -46,55 +39,29 @@ formula from the Byzantine Generals problem:
 n = 3 x errors + 1
 ```
 
-## Messages
-
-### Request
-
-The `request` has the following required properties:
-
-- `type`: `<string>`
-- `date`: `<date>`
-- `idemkey`: `<string>`
-- `criticity`: `<number>`
-- `payload`: `<object>`
-
-### Pre-prepare
-
-In an Event Sourcing system, the *deterministic* requirement is fullfilled with
-order guarantee events. The number attached to an event is given by:
-`current state number + 1`.
-
-For example, the very first event number is starting from `0`. Its reduction is
-leading to state with number `0`. The next event will then have a number of
-`1` for this state.
-
-### Prepare
-
-### Commit
-
-### Reply
-
-### Commander (master)
-
-The general is publishing the **n** `requests` and is waiting for the responses.
-
-The messages are identifying the commander and the generals.
-
-### Generals (replicas)
-
-Each general is applying
-
 # Protocol
 
-- A request is sent to one replica
-- This replica is determining the index `n` of this request for the document
-  identified with `v`
-- This request is stored in the primary replica
-- A digest is computed for the request
-- The request is broadcasted to all replicas
-- Each replica is determining the index on its own referential
-  - if `n_i != n`, the request is refused
-  - else send `commit`
+The main philosophy behind this protocol is to respect local processing. An
+event is stored in a replica with the event **reception** timestamp. By
+consequence, each event will have different persitence timestamps but their
+reconciliation order must be guaranteed.
+
+Once events are stored, the overall events order is guaranteed by the BFT
+protocol. If the broker is faulty,
+
+- The request is broadcast to all replicas
+- Each replica is storing the request in the events referential with a
+  pending validation flag
+- It broadcast a message informing the reception and persistence of a request
+  with a valid digest (no big payload communication)
+- The replica is receiving the message reception and validates the digest
+  with the locally stored event
+- Once `2f+1` reception messages are received, the event is inserted into
+  the events referential
+
+A top level replica controller is in charge to
+
+## Reconciliation
 
 # References
 
